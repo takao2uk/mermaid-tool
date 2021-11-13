@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Include Google Maps JS API -->
+    <!-- script type="text/javascript"
+            src="https://maps.googleapis.com/maps/api/js?client=gme-weathernewsinc">
+    </script -->
+    <script type="text/javascript"
+            src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCx44CpCqQccRilxOJrgJ4GaHcysWS-Kl0">
+    </script>
+    <style type="text/css">
+      html { height: 100% }
+      body { height: 100%; margin: 5; }
+      #mapDiv { width: 800px; height: 500px; }
+    </style>
+    <script type="text/javascript" src="spf1.js">
+    </script>
+        <!-- Map creation is here -->
+    <script type="text/javascript">
+      
+      function addMarker(latlng, text, icon){
+	  var marker = new google.maps.Marker({
+	      position: new google.maps.LatLng(latlng[0],latlng[1]),
+	      map: map,
+	      icon: icon,
+	      title: "test"
+	  });
+
+	  var infowindow = new google.maps.InfoWindow({
+	      content: text
+	  });
+	  google.maps.event.addListener(marker, 'mouseover', function(){
+	      infowindow.open(map, marker);
+	  });
+	  google.maps.event.addListener(marker, 'mouseout', function(){
+	      infowindow.close();
+	  });
+
+	  return marker;
+      }
+
+      function initMap() {
+          //Enabling new cartography and themes
+          google.maps.visualRefresh = true;
+
+	  //Setting starting options of map
+          var mapOptions = {
+              center: new google.maps.LatLng(40.0, 140.0),
+              zoom: 4,
+              mapTypeId: google.maps.MapTypeId.ROADMAP
+          };
+	  
+          //Getting map DOM element
+          var mapElement = document.getElementById('mapDiv');
+	  
+          //Creating a map with DOM element which is just obtained
+          map = new google.maps.Map(mapElement, mapOptions);
+
+	  //Read CSV data                                                                                 	
+	  var seapt_master = [], seapts = [];
+	  //var lat, lon;
+
+          var req0 = new XMLHttpRequest();
+          var req1 = new XMLHttpRequest();	  
+
+	  //SEA points information, e.g. name, lat, lon
+	  req0.open("get", "./master_file/seapt_master.csv", true);
+          req0.send(null);
+	  req0.onload = function(){
+              let text = req0.responseText;
+              let lines = text.split("\n");
+              for (var i=1; i<lines.length; ++i){
+		  // 0:#seapt, 1:lname, 2:ename, 3:latd, 4:lond, 5:weather cond, 6:sgfhgt or wvhgt, 7:wave2, 8:wave3,
+		  // 9:wndspd or gusts, 10:wind2, 11:wind3, 12:hvis2, 13:hvis3, 14:pref
+		  var cells = lines[i].split(',');
+		  if (cells != "")
+		      seapt_master.push(cells);
+              }
+	  }
+
+	  //SEA points to be shown
+          req1.open("get", "./master_file/accesslist.csv", true);	
+          req1.send(null);
+	  req1.onload = function(){
+	      let text = req1.responseText;
+	      let lines = text.split("\n");
+	      for (var i=0; i<lines.length; ++i){
+		  var cells = lines[i].split(',');
+		  if (cells != ""){
+		      var tmparr = [];
+		      for (var j=0; j<cells.length; j++){
+			  tmparr.push(cells[j]);
+		      }
+		      seapts.push(tmparr);
+		  }
+	      }
+	  }
+	  
+	  
+	  // Find lat/lng for a SEA point
+	  function findLatLng(name){
+	      var tmplat, tmplng;
+	      for (var j=1; j<seapt_master.length; ++j){
+		  var tmpdict = seapt_master[j];
+		  if (tmpdict[0] === name){
+		      tmplat = tmpdict[3];
+		      tmplng = tmpdict[4];
+		      break;
+		  }
+	      }
+	      return [tmplat, tmplng];
+	  }
+
+	  // calculate distance
+	  function calcdist(pt1, pt2){
+	      const R = Math.PI / 180;
+	      var lat1 = pt1[0] *R;
+	      var lng1 = pt1[1] *R;
+	      var lat2 = pt2[0] *R;
+	      var lng2 = pt2[1] *R;
+	      return 6371*Math.acos(Math.cos(lat1)*Math.cos(lat2)*Math.cos(lng2-lng1)+Math.sin(lat1)*Math.sin(lat2));
+	  }
+
+
+	  // Draw SEA-points by markers
+	  var draw_seapts = [];
+	  document.getElementById('draw_seapts').addEventListener('click', function(){
+	      if(draw_seapts.length === 0){ 
+		  //for (var i=0; i<seapts.length; ++i){
+		  for (var i=0; i<seapt_master.length; ++i){		  
+		      //var tmpname = seapts[i][0];
+		      var tmpname = seapt_master[i][0];
+		      var tmplatlng = findLatLng(tmpname);
+		      if(isNaN(tmplatlng[0]) || isNaN(tmplatlng[1]))
+			  continue;
+		      draw_seapts[i] = addMarker(tmplatlng, tmpname, "red-dot.png");
+		  }
+	      }
+	  });
+	      
+	  // Clear SEAPTs
+	  document.getElementById('clear_seapts').addEventListener('click', function (){
+	      for (var i=0; i<draw_seapts.length; i++){
+		  if (draw_seapts[i] != undefined){
+		      draw_seapts[i].setMap(null);
+		      draw_seapts[i] = null;
+		  }
+	      }
+	      draw_seapts.length =0;
+	  });
+
+	  
+	  // Draw lines for graph
+	  var draw_links = [];
+	  document.getElementById('draw_links').addEventListener('click', function(){
+	      if(draw_links.length === 0){
+		  var links = [];
+		  for (var i=0; i<seapts.length; ++i){
+		      var startname = seapts[i][0];
+		      var startpt = findLatLng(startname);
+		      if(isNaN(startpt[0]) || isNaN(startpt[1]))
+			  continue;
+		      for (var j=1; j<seapts[i].length; j++){
+			  var endname = seapts[i][j];
+			  if (startname === endname)
+			      break;
+			  var endpt = findLatLng(endname);
+			  if(isNaN(endpt[0]) || isNaN(endpt[1]))
+			      continue;
+			  var tmplink = [];
+			  tmplink.push(startpt);
+			  tmplink.push(endpt);
+			  links.push(tmplink);
+		      }
+		  }
+		  for (var i=0; i<links.length; i++){
+		      let linePath = [];
+		      let tmp1 = new google.maps.LatLng(links[i][0][0], links[i][0][1]);
+		      linePath.push(tmp1);
+		      let tmp2 = new google.maps.LatLng(links[i][1][0], links[i][1][1]);
+		      linePath.push(tmp2);
+		      let lineOptions = {
+			  path: linePath,
+			  strokeWeight: 1,
+			  strokeColor: 'blue',
+			  strokeOpacity: 0.8
+		      };
+		      draw_links[i] = new google.maps.Polyline(lineOptions);
+		      draw_links[i].setMap(map);
+		  }
+	      }
+	  });
+
+	  // clear links
+	  document.getElementById('clear_links').addEventListener('click', function (){
+	      for (var i=0; i<draw_links.length; i++){
+		  if (draw_links[i] != undefined){
+		      draw_links[i].setMap(null);
+		      draw_links[i] = null;
+		  }
+	      }
+	      draw_links.length =0;
+	  });
+	  
+
+	  // Check registerd SEAPTs
+	  var table;
+	  document.getElementById('search').addEventListener('click', function (){
+	      // seapt_master format
+	      // 0:#seapt, 1:lname, 2:ename, 3:latd, 4:lond, 5:weather cond, 6:sgfhgt or wvhgt, 7:wave2, 8:wave3,
+	      // 9:wndspd or gusts, 10:wind2, 11:wind3, 12:hvis2, 13:hvis3, 14:pref
+
+	      let id = document.fm1.id.value;
+
+	      var rows=[];
+	      table = document.createElement("table");
+	      table.style.cssText = "width:300;height:120";
+
+	      let j=0;
+
+	      rows.push(table.insertRow(-1));
+	      
+	      let cell = rows[j].insertCell(-1);
+	      cell.appendChild(document.createTextNode("SEAPT_ID"))
+	      cell.style.backgroundColor = "#bbb";
+	      
+	      cell = rows[j].insertCell(-1);
+	      cell.appendChild(document.createTextNode("lname"))
+	      cell.style.backgroundColor = "#bbb";
+
+	      cell = rows[j].insertCell(-1);
+	      cell.appendChild(document.createTextNode("ename"))
+	      cell.style.backgroundColor = "#bbb";
+
+	      cell = rows[j].insertCell(-1);
+	      cell.appendChild(document.createTextNode("Lat."))
+	      cell.style.backgroundColor = "#bbb";
+
+	      cell = rows[j].insertCell(-1);
+	      cell.appendChild(document.createTextNode("Lon."))
+	      cell.style.backgroundColor = "#bbb";
+
+	      cell = rows[j].insertCell(-1);
+	      cell.appendChild(document.createTextNode("Pref."))
+	      cell.style.backgroundColor = "#bbb";
+
+	      j++;
+	      
+		  
+	      for(let i=0; i<seapt_master.length; i++){
+		  let seaptId = seapt_master[i][0];
+		  if (seaptId.indexOf(id) === 0){
+		      rows.push(table.insertRow(-1));
+		      
+		      cell = rows[j].insertCell(-1);
+		      cell.appendChild(document.createTextNode(seapt_master[i][0]))
+		      cell.style.backgroundColor = "#ddd";
+
+		      cell = rows[j].insertCell(-1);
+		      cell.appendChild(document.createTextNode(seapt_master[i][1]))
+		      cell.style.backgroundColor = "#ddd";
+
+		      cell = rows[j].insertCell(-1);
+		      cell.appendChild(document.createTextNode(seapt_master[i][2]))
+		      cell.style.backgroundColor = "#ddd";
+
+		      cell = rows[j].insertCell(-1);
+		      cell.appendChild(document.createTextNode(seapt_master[i][3]))
+		      cell.style.backgroundColor = "#ddd";
+
+		      cell = rows[j].insertCell(-1);
+		      cell.appendChild(document.createTextNode(seapt_master[i][4]))
+		      cell.style.backgroundColor = "#ddd";
+
+		      cell = rows[j].insertCell(-1);
+		      cell.appendChild(document.createTextNode(seapt_master[i][14]))
+		      cell.style.backgroundColor = "#ddd";
+
+		      j++;
+		      if (j>9){
+			  msg.innerText = "More than 10 results are not shown.";			  
+			  break;
+		      }
+		  }
+		  document.getElementById("table").appendChild(table);
+	      }
+	  });
+
+
+	  document.getElementById('clear_search').addEventListener('click', function (){
+	      document.getElementById("table").removeChild(table);
+	      msg.innerText = "";			  	      
+	  });
+
+
+	  // Delete SEAPT with coneected links.
+	  var delpt = "";
+	  var draw_delpt;
+	  var dellinks = [];
+	  var draw_dellinks = [];
+	  var table1;
+	  var logmsg;
+	  
+	  document.getElementById('del_check').addEventListener('click', function (){
+	      if (delpt === ""){
+		  delpt = document.fm2.delid.value;
+
+                  // check if there is an existing entry for delpt
+                  var flg = 0;
+                  for (let i=0; i<seapt_master.length; i++){
+                      if (delpt === seapt_master[i][0]){
+                          flg = 1;
+                          break;
+                      }
+                  }
+
+                  if (flg === 0){ // delpt is not in seapt-master.
+		      delpt = "";
+                      msg1.innerText = "The SEAPT-ID is not found in seapt-master.";
+                  } else { // delete delpt.
+
+		      // Show deleting delpt
+		      var rows1=[];
+		      table1 = document.createElement("table");
+		      table1.style.cssText = "width:300;height:120";
+		      
+		      rows1.push(table1.insertRow(-1));
+		      
+		      let cell = rows1[0].insertCell(-1);
+		      cell.appendChild(document.createTextNode("SEAPT_ID"))
+		      cell.style.backgroundColor = "#bbb";
+		      
+		      cell = rows1[0].insertCell(-1);
+		      cell.appendChild(document.createTextNode("lname"))
+		      cell.style.backgroundColor = "#bbb";
+		      
+		      cell = rows1[0].insertCell(-1);
+		      cell.appendChild(document.createTextNode("ename"))
+		      cell.style.backgroundColor = "#bbb";
+		      
+		      cell = rows1[0].insertCell(-1);
+		      cell.appendChild(document.createTextNode("Lat."))
+		      cell.style.backgroundColor = "#bbb";
+		      
+		      cell = rows1[0].insertCell(-1);
+		      cell.appendChild(document.createTextNode("Lon"))
+		      cell.style.backgroundColor = "#bbb";
+
+		      cell = rows1[0].insertCell(-1);
+		      cell.appendChild(document.createTextNode("Pref."))
+		      cell.style.backgroundColor = "#bbb";
+		      
+		      for(let i=0; i<seapt_master.length; i++){
+			  let seaptId = seapt_master[i][0];
+			  if (seaptId === delpt){
+			      rows1.push(table1.insertRow(-1));
+			      
+			      cell = rows1[1].insertCell(-1);
+			      cell.appendChild(document.createTextNode(seapt_master[i][0]))
+			      cell.style.backgroundColor = "#ddd";
+			      
+			      cell = rows1[1].insertCell(-1);
+			      cell.appendChild(document.createTextNode(seapt_master[i][1]))
+			      cell.style.backgroundColor = "#ddd";
+			      
+			      cell = rows1[1].insertCell(-1);
+			      cell.appendChild(document.createTextNode(seapt_master[i][2]))
+			      cell.style.backgroundColor = "#ddd";
+			      
+			      cell = rows1[1].insertCell(-1);
+			      cell.appendChild(document.createTextNode(seapt_master[i][3]))
+			      cell.style.backgroundColor = "#ddd";
+			      
+			      cell = rows1[1].insertCell(-1);
+			      cell.appendChild(document.createTextNode(seapt_master[i][4]))
+			      cell.style.backgroundColor = "#ddd";
+
+			      cell = rows1[1].insertCell(-1);
+			      cell.appendChild(document.createTextNode(seapt_master[i][14]))
+			      cell.style.backgroundColor = "#ddd";
+			      
+			      break;
+			  }
+		      }
+		      document.getElementById("table1").appendChild(table1);
+
+		      // Draw deleting SEAPT
+                      for (let i=0; i<seapt_master.length; ++i){
+			  let seaptId = seapt_master[i][0];
+			  if (seaptId === delpt){
+                              var tmpname = seapt_master[i][0];
+                              var tmplatlng = findLatLng(tmpname);
+                              if(isNaN(tmplatlng[0]) || isNaN(tmplatlng[1]))
+				  continue;
+                              draw_delpt = addMarker(tmplatlng, tmpname, "yellow-dot.png");
+                              break;
+			  }
+                      }
+
+		      // Draw deleting links
+		      for (let i=0; i<seapts.length; ++i){
+			  let startname = seapts[i][0];
+			  if (startname === delpt){		      
+			      var startpt = findLatLng(startname);
+			      if(isNaN(startpt[0]) || isNaN(startpt[1]))
+				  continue;
+			      for (var j=1; j<seapts[i].length; j++){
+				  var endname = seapts[i][j];
+				  if (startname === endname)
+				      break;
+				  var endpt = findLatLng(endname);
+				  if(isNaN(endpt[0]) || isNaN(endpt[1]))
+				      continue;
+				  var tmplink = [];
+				  tmplink.push(startpt);
+				  tmplink.push(endpt);
+				  dellinks.push(tmplink);
+			      }
+			      break;
+			  }
+		      }
+		      for (let i=0; i<dellinks.length; i++){
+			  let linePath = [];
+			  let tmp1 = new google.maps.LatLng(dellinks[i][0][0], dellinks[i][0][1]);
+			  linePath.push(tmp1);
+			  let tmp2 = new google.maps.LatLng(dellinks[i][1][0], dellinks[i][1][1]);
+			  linePath.push(tmp2);
+			  let lineOptions = {
+			      path: linePath,
+			      strokeWeight: 3,
+			      strokeColor: 'yellow',
+			      strokeOpacity: 0.8
+			  };
+			  draw_dellinks[i] = new google.maps.Polyline(lineOptions);
+			  draw_dellinks[i].setMap(map);
+		      }
+		      msg1.innerText = "";
+		  }
+	      }
+	  });
+
+	  document.getElementById('clear_check').addEventListener('click', function (){
+	      if (delpt != ""){
+		  // Clear the cache for the delpt		  
+		  delpt = "";
+		  draw_delpt.setMap(null);
+		  draw_delpt = undefined;
+		  for (let i=0; i<draw_dellinks.length; i++){
+		      if(draw_dellinks[i] != undefined){
+			  draw_dellinks[i].setMap(null);
+			  draw_dellinks[i] = undefined;
+		      }
+		  }
+		  dellinks.length =0;
+		  draw_dellinks.length =0;
+
+		  document.getElementById("table1").removeChild(table1);
+	      }
+	      msg1.innerText = "";
+	  });
+
+	  document.getElementById('delete').addEventListener('click', function (){
+	      if (delpt != ""){
+
+                  // check if there is an existing entry for delpt
+                  var flg = 0;
+                  for (let i=0; i<seapt_master.length; i++){
+                      if (delpt === seapt_master[i][0]){
+                          flg = 1;
+                          break;
+                      }
+                  }
+
+                  if (flg === 0){ // delpt is not found in seapt-master.
+		      delpt = "";
+                      msg1.innerText = "The SEAPT-ID is not found in seapt-master.";
+                  } else { // delete delpt.
+		  
+		      //Delete from seapt_master
+		      for(let i=0; i<seapt_master.length; i++){
+			  let seaptId = seapt_master[i][0];
+			  if (seaptId === delpt){
+			      seapt_master.splice(i,1);
+			      break;
+			      console.log("delete line of seapt_master: " + seaptId);
+			  }
+		      }
+		      //document.getElementById("table1").appendChild(table1);
+		      
+		      // Delete from seapts
+		      console.log("delpt = " + delpt);
+		      let n;
+		      let flg1=0;
+		      for (let i=0; i<seapts.length; i++){
+			  if (seapts[i][0] === delpt){
+			      console.log("delete line: " + seapts[i][0]);
+			      flg1=1;
+			      n = i;
+			  } else {
+			      for (let j=1; j<seapts[i].length; j++){
+				  if (seapts[i][j] === delpt){
+				      console.log("delete point: " + seapts[i][0] + " j=: " +j);
+				      seapts[i].splice(j,1);
+				  }
+				  //if (seapts[i][j] === "naoko"){
+				  //    console.log("delete point: " + seapts[i][0] + " j=: " +j);
+				  //}
+			      }
+			  }
+		      }
+		      if(flg1 === 1)
+			  seapts.splice(n,1);
+
+
+		      // log message
+		      let dt = new Date();
+		      logmsg = dt.toISOString() + ": A sea-point [" + delpt + "] is deleted. ";
+		      msg1.innerText = logmsg;
+
+                      // Send JSON file to server for config-file update
+		      let tmparray = [];
+                      tmparray.push(seapts);
+                      tmparray.push(seapt_master);
+		      tmparray.push(logmsg);
+                      let json_out = JSON.stringify(tmparray);
+                      let xhr_json = new XMLHttpRequest();
+                      xhr_json.open("POST", "del_seapt.cgi");
+                      xhr_json.setRequestHeader("Content-Type", "text/plain:charset=UTF-8");
+                      xhr_json.send(json_out);
+                      xhr_json.onreadystatechange = function(){
+                          if(this.readyState === 4 && this.status === 200){ // cgi completed properly.
+                              //let ttt = this.responseText;
+			      //console.log(ttt);
+
+			      // Clear the cache for the delpt		  
+			      draw_delpt.setMap(null);
+			      draw_delpt = undefined;
+			      for (let i=0; i<draw_dellinks.length; i++){
+				  if(draw_dellinks[i] != undefined){
+				      draw_dellinks[i].setMap(null);
+				      draw_dellinks[i] = undefined;
+				  }
+			      }
+			      dellinks.length =0;
+			      draw_dellinks.length =0;
+			      document.getElementById("table1").removeChild(table1);
+
+                              // forward to next page                                                                                                               
+                              document.location.href = "del_seapt_success.html?delpt="+delpt;
+                              delpt = "";
+                          }
+                      }
+		      msg1.innerText = "";
+		  }
+	      }
+	  });
+	  
+      }
+
+      google.maps.event.addDomListener(window, 'load', initMap);
+    </script>
+  </head>
+  <body>
+    <b>MERMAID route-graph and shortest-path</b><br/>
+    <br>
+    <input id="draw_seapts" type="button" value="SEAPTs">
+    <input id="clear_seapts" type="button" value="CLEAR"><br>
+    <input id="draw_links" type="button" value="LINKs">
+    <input id="clear_links" type="button" value="CLEAR"><br><br>
+    <form name='fm1' method='POST' action='' id='draw_spf'>
+      Check PORT/SEAPT: <br>
+      <label> ID<input type="text" name="id" size="10" id="id"></label>
+    </form>      
+    <input id="search" type="button" value="SEARCH">
+    <input id="clear_search" type="button" value="CLEAR"><br><br>
+
+    <div id="table"></div>
+    <p id="msg"></p>
+
+    <form name='fm2' method='POST' action='' id='draw_spf'>
+      Delete PORT/SEAPT: <br>
+      <label> ID<input type="text" name="delid" size="10" id="delid"></label>
+    </form>
+    <input id="del_check" type="button" value="CHECK">
+    <input id="clear_check" type="button" value="CLEAR"><br>
+    <input id="delete" type="button" value="DELETE">
+
+    <div id="table1"></div>
+    <p id="msg1"></p><br>
+
+    <a href="index.html">Return to menu</a>
+    <div id="mapDiv"></div>
+
+  </body>
+</html>

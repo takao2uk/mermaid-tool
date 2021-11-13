@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Include Google Maps JS API -->
+    <!-- script type="text/javascript"
+            src="https://maps.googleapis.com/maps/api/js?client=gme-weathernewsinc">
+    </script -->
+    <script type="text/javascript"
+            src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCx44CpCqQccRilxOJrgJ4GaHcysWS-Kl0">
+    </script>
+    <style type="text/css">
+      html { height: 100% }
+      body { height: 100%; margin: 5; }
+      #mapDiv { width: 800px; height: 500px; }
+    </style>
+    <script type="text/javascript" src="spf1.js">
+    </script>
+        <!-- Map creation is here -->
+    <script type="text/javascript">
+      
+      function addMarker(latlng, text, icon){
+	  var marker = new google.maps.Marker({
+	      position: new google.maps.LatLng(latlng[0],latlng[1]),
+	      map: map,
+	      icon: icon,
+	      title: "test"
+	  });
+
+	  var infowindow = new google.maps.InfoWindow({
+	      content: text
+	  });
+	  google.maps.event.addListener(marker, 'mouseover', function(){
+	      infowindow.open(map, marker);
+	  });
+	  google.maps.event.addListener(marker, 'mouseout', function(){
+	      infowindow.close();
+	  });
+
+	  return marker;
+      }
+
+      function initMap() {
+          //Enabling new cartography and themes
+          google.maps.visualRefresh = true;
+
+	  //Setting starting options of map
+          var mapOptions = {
+              center: new google.maps.LatLng(40.0, 140.0),
+              zoom: 4,
+              mapTypeId: google.maps.MapTypeId.ROADMAP
+          };
+	  
+          //Getting map DOM element
+          var mapElement = document.getElementById('mapDiv');
+	  
+          //Creating a map with DOM element which is just obtained
+          map = new google.maps.Map(mapElement, mapOptions);
+
+	  //Read CSV data                                                                                 	
+	  var seapt_master = [];
+	  var seapts = [];
+	  var route_master = [];
+	  //var text, lines;
+	  //var lat, lon;
+
+          var req0 = new XMLHttpRequest();
+          var req1 = new XMLHttpRequest();
+
+	  //SEA points information, e.g. name, lat, lon
+	  //req0.open("get", "mermaid-data/seapt-master.csv", true);
+	  req0.open("get", "./master_file/seapt_master.csv", true);	  
+          req0.send(null);
+	  req0.onload = function(){
+              let text = req0.responseText;
+              let lines = text.split("\n");
+              for (var i=1; i<lines.length; ++i){
+		  // 0:#seapt, 1:lname, 2:ename, 3:latd, 4:lond, 5:weather cond, 6:sgfhgt or wvhgt, 7:wave2, 8:wave3,
+		  // 9:wndspd or gusts, 10:wind2, 11:wind3, 12:hvis2, 13:hvis3, 14:pref
+		  var cells = lines[i].split(',');
+		  if (cells != "")
+		      seapt_master.push(cells);
+		  console.log(cells[0]);
+              }
+	  }
+
+	  //SEA points to be shown
+          //req1.open("get", "mermaid-data/accesslist.csv", true);
+	  req1.open("get", "./master_file/accesslist.csv", true);		  
+          req1.send(null);
+	  req1.onload = function(){
+	      let text = req1.responseText;
+	      let lines = text.split("\n");
+	      for (var i=0; i<lines.length; ++i){
+		  var cells = lines[i].split(',');
+		  if (cells != ""){
+		      var tmparr = [];
+		      for (var j=0; j<cells.length; j++){
+			  tmparr.push(cells[j]);
+		      }
+		      seapts.push(tmparr);
+		  } 
+	      }
+	  }
+
+	  // Find lat/lng for a SEA point
+	  function findLatLng(name){
+	      var tmplat, tmplng;
+	      for (var j=1; j<seapt_master.length; ++j){
+		  var tmpdict = seapt_master[j];
+		  if (tmpdict[0] === name){
+		      tmplat = tmpdict[3];
+		      tmplng = tmpdict[4];
+		      break;
+		  }
+	      }
+	      return [tmplat, tmplng];
+	  }
+
+	  // calculate distance
+	  function calcdist(pt1, pt2){
+	      const R = Math.PI / 180;
+	      var lat1 = pt1[0] *R;
+	      var lng1 = pt1[1] *R;
+	      var lat2 = pt2[0] *R;
+	      var lng2 = pt2[1] *R;
+	      return 6371*Math.acos(Math.cos(lat1)*Math.cos(lat2)*Math.cos(lng2-lng1)+Math.sin(lat1)*Math.sin(lat2));
+	  }
+
+
+	  // Draw SEA-points by markers
+	  var draw_seapts = [];
+	  document.getElementById('draw_seapts').addEventListener('click', function(){
+	      if(draw_seapts.length === 0){
+		  //for (var i=0; i<seapts.length; ++i){
+		  for (var i=0; i<seapt_master.length; ++i){
+		      var tmpname = seapt_master[i][0];
+		      var tmplatlng = findLatLng(tmpname);
+		      if(isNaN(tmplatlng[0]) || isNaN(tmplatlng[1]))
+			  continue;
+		      draw_seapts[i] = addMarker(tmplatlng, tmpname, "red-dot.png");
+		  }
+	      }
+	  });
+	      
+	  // Clear SEAPTs
+	  document.getElementById('clear_seapts').addEventListener('click', function (){
+	      for (var i=0; i<draw_seapts.length; i++){
+		  if (draw_seapts[i] != undefined){
+		      draw_seapts[i].setMap(null);
+		      draw_seapts[i] = null;
+		  }
+	      }
+	      draw_seapts.length =0;
+	  });
+
+	  
+	  // Draw links for graph
+	  var draw_links = [];
+	  document.getElementById('draw_links').addEventListener('click', function(){
+	      if(draw_links.length === 0){
+		  var links = [];
+		  for (var i=0; i<seapts.length; ++i){
+		      var startname = seapts[i][0];
+		      var startpt = findLatLng(startname);
+		      if(isNaN(startpt[0]) || isNaN(startpt[1]))
+			  continue;
+		      for (var j=1; j<seapts[i].length; j++){
+			  var endname = seapts[i][j];
+			  if (startname === endname)
+			      break;
+			  var endpt = findLatLng(endname);
+			  if(isNaN(endpt[0]) || isNaN(endpt[1]))
+			      continue;
+			  var tmplink = [];
+			  tmplink.push(startpt);
+			  tmplink.push(endpt);
+			  links.push(tmplink);
+		      }
+		  }
+		  for (var i=0; i<links.length; i++){
+		      let linePath = [];
+		      let tmp1 = new google.maps.LatLng(links[i][0][0], links[i][0][1]);
+		      linePath.push(tmp1);
+		      let tmp2 = new google.maps.LatLng(links[i][1][0], links[i][1][1]);
+		      linePath.push(tmp2);
+		      let lineOptions = {
+			  path: linePath,
+			  strokeWeight: 1,
+			  strokeColor: 'blue',
+			  strokeOpacity: 0.8
+		      };
+		      draw_links[i] = new google.maps.Polyline(lineOptions);
+		      draw_links[i].setMap(map);
+		  }
+	      }
+	  });
+
+	  // clear links
+	  document.getElementById('clear_links').addEventListener('click', function (){
+	      for (var i=0; i<draw_links.length; i++){
+		  if (draw_links[i] != undefined){
+		      draw_links[i].setMap(null);
+		      draw_links[i] = null;
+		  }
+	      }
+	      draw_links.length =0;
+	  });
+
+	  
+	  // add a new SEA point and route by CSV
+	  var new_csvpts = [];
+	  var new_csv_mappts = [];
+	  document.getElementById('chk_csv').addEventListener('click', function (){
+	      msg.innerText = "";
+	      if ( new_csvpts.length === 0 && new_csv_mappts.length === 0){
+
+		  // seapt_arr
+		  // 0:#seapt, 1:lname, 2:ename, 3:latd, 4:lond, 5:weather cond, 6:sgfhgt or wvhgt, 7:wave2, 8:wave3,          
+                  // 9:wndspd or gusts, 10:wind2, 11:wind3, 12:hvis2, 13:hvis3, 14:pref
+
+		  let seapt_csvs = [];
+		  let route_csvs = [];
+		  
+		  let seapt_csv1 = document.csv.seapt_csv1.value;
+		  if (seapt_csv1 != ""){
+		      seapt_csvs.push(seapt_csv1);		      
+		      let seapt_arr1 = seapt_csv1.split(",");
+		      if(seapt_arr1[0] != "" && !isNaN(seapt_arr1[3]) && !isNaN(seapt_arr1[4]))
+			  new_csvpts.push([seapt_arr1[0],seapt_arr1[3],seapt_arr1[4]]);
+		  }
+
+		  let seapt_csv2 = document.csv.seapt_csv2.value;
+		  if (seapt_csv2 != ""){
+		      seapt_csvs.push(seapt_csv2);		      
+		      let seapt_arr2 = seapt_csv2.split(",");
+		      if(seapt_arr2[0] != "" && !isNaN(seapt_arr2[3]) && !isNaN(seapt_arr2[4]))
+			  new_csvpts.push([seapt_arr2[0],seapt_arr2[3],seapt_arr2[4]]);
+		  }
+
+		  let seapt_csv3 = document.csv.seapt_csv3.value;
+		  if (seapt_csv3 != ""){
+		      seapt_csvs.push(seapt_csv3);		      
+		      let seapt_arr3 = seapt_csv3.split(",");
+		      if(seapt_arr3[0] != "" && !isNaN(seapt_arr3[3]) && !isNaN(seapt_arr3[4]))
+			  new_csvpts.push([seapt_arr3[0],seapt_arr3[3],seapt_arr3[4]]);
+		  }
+		  
+		  let seapt_csv4 = document.csv.seapt_csv4.value;
+		  if (seapt_csv4 != ""){
+		      seapt_csvs.push(seapt_csv4);		      
+		      let seapt_arr4 = seapt_csv4.split(",");
+		      if(seapt_arr4[0] != "" && !isNaN(seapt_arr4[3]) && !isNaN(seapt_arr4[4]))
+			  new_csvpts.push([seapt_arr4[0],seapt_arr4[3],seapt_arr4[4]]);
+		  }
+		  
+		  let seapt_csv5 = document.csv.seapt_csv5.value;
+		  if (seapt_csv5 != ""){
+		      seapt_csvs.push(seapt_csv5);		      
+		      let seapt_arr5 = seapt_csv5.split(",");
+		      if(seapt_arr5[0] != "" && !isNaN(seapt_arr5[3]) && !isNaN(seapt_arr5[4]))
+			  new_csvpts.push([seapt_arr5[0],seapt_arr5[3],seapt_arr5[4]]);
+		  }
+
+		  // check duplicate entry
+		  /*
+		  for (let i=0; i<new_csvpts.length; i++){
+		      for (let j=0; j<seapt_master.length; j++){
+			  if (new_csvpts[i][0] === seapt_master[j][0]){
+			      msg.innerText = "A duplicate entry is found. Cannot modefy the master files: "+new_csvpts[i][0]; 
+			      new_csvpts.length = 0;
+			      return;
+			  }
+		      }
+		  }
+		  */
+		  
+		  let route_csv1 = document.csv.route_csv1.value;
+		  if (route_csv1 != "")
+		      route_csvs.push(route_csv1);		      
+		  let route_csv2 = document.csv.route_csv2.value;
+		  if (route_csv2 != "")
+		      route_csvs.push(route_csv2);
+		  let route_csv3 = document.csv.route_csv3.value;
+		  if (route_csv3 != "")
+		      route_csvs.push(route_csv3);
+		  let route_csv4 = document.csv.route_csv4.value;
+		  if (route_csv4 != "")
+		      route_csvs.push(route_csv4);
+		  let route_csv5 = document.csv.route_csv5.value;
+		  if (route_csv5 != "")
+		      route_csvs.push(route_csv5);
+		  
+		  // Send JSON file to server to check duplicate entries
+		  let tmparray = [];
+		  tmparray.push(seapt_csvs);
+		  tmparray.push(route_csvs);
+		  let json_out = JSON.stringify(tmparray);
+		  msg.innerText = json_out + "\n";
+		  
+		  let xhr_json = new XMLHttpRequest();
+		  xhr_json.open("POST", "checkcsv.cgi");
+		  xhr_json.setRequestHeader("Content-Type", "text/plain:charset=UTF-8");
+		  xhr_json.send(json_out);
+		  xhr_json.onreadystatechange = function(){
+		      if(this.readyState === 4 && this.status === 200){ // cgi completed properly.
+			  let res = this.responseText;
+			  console.log("response: "+res);
+			  if (res === "0"){ // no duplication
+			      msg.innerText = "No duplication is found.";
+			      if (new_csvpts.length != 0 ){
+				  for (let i=0; i<new_csvpts.length; i++){
+				      new_csv_mappts[i] = addMarker([new_csvpts[i][1],new_csvpts[i][2]], new_csvpts[i][0], "green-dot.png");
+				  }
+			      }else{
+				  msg.innerText = "SEAPT or Lat or Lng is missing.";
+			      }
+			  } else { // duplication found
+			      msg.innerText = res;
+			      new_csvpts.length = 0;
+			  }			      
+		      }
+		  }
+	      }
+	  });
+
+
+	  document.getElementById('clear_csv').addEventListener('click', function (){
+	      if (new_csv_mappts.length != 0  && new_csvpts.length != 0){
+		  new_csvpts.length = 0;
+		  for (let i=0; i<new_csv_mappts.length; i++){
+		      if (new_csv_mappts[i] != undefined){
+			  new_csv_mappts[i].setMap(null);
+			  new_csv_mappts[i] = null;
+		      }
+		  }
+		  new_csv_mappts.length = 0;
+	      }
+	      msg.innerText = "";
+	  });
+
+
+	  document.getElementById('save_csv').addEventListener('click', function (){
+	      if (new_csvpts.length != 0 && new_csv_mappts.length != 0 ){
+
+		  let seapt_csvs = [];
+		  let route_csvs = [];
+		  
+		  let seapt_csv1 = document.csv.seapt_csv1.value;
+		  if (seapt_csv1 != "")
+		      seapt_csvs.push(seapt_csv1);
+		  let seapt_csv2 = document.csv.seapt_csv2.value;
+		  if (seapt_csv2 != "")
+		      seapt_csvs.push(seapt_csv2);		      
+		  let seapt_csv3 = document.csv.seapt_csv3.value;
+		  if (seapt_csv3 != "")
+		      seapt_csvs.push(seapt_csv3);
+		  let seapt_csv4 = document.csv.seapt_csv4.value;
+		  if (seapt_csv4 != "")
+		      seapt_csvs.push(seapt_csv4);
+		  let seapt_csv5 = document.csv.seapt_csv5.value;
+		  if (seapt_csv5 != "")
+		      seapt_csvs.push(seapt_csv5);		      
+		  
+		  let route_csv1 = document.csv.route_csv1.value;
+		  if (route_csv1 != "")
+		      route_csvs.push(route_csv1);		      
+		  let route_csv2 = document.csv.route_csv2.value;
+		  if (route_csv2 != "")
+		      route_csvs.push(route_csv2);
+		  let route_csv3 = document.csv.route_csv3.value;
+		  if (route_csv3 != "")
+		      route_csvs.push(route_csv3);
+		  let route_csv4 = document.csv.route_csv4.value;
+		  if (route_csv4 != "")
+		      route_csvs.push(route_csv4);
+		  let route_csv5 = document.csv.route_csv5.value;
+		  if (route_csv5 != "")
+		      route_csvs.push(route_csv5);
+		  
+		  // log message
+		  tmplog = "";
+		  for (let i=0;i<new_csvpts.length;i++)
+		      tmplog = tmplog+new_csvpts[i][0]+",";
+
+		  let dt = new Date();
+		  //logmsg = dt.toISOString() + ": SEA-points are added."
+		  let logmsg = dt.toISOString() + ": SEA-points, "+tmplog+" are added.";
+		  //msg.innerText = logmsg + "\n";
+		  
+		  // Send JSON file to server to update master files and to backup original files.
+		  let tmparray = [];
+		  tmparray.push(seapt_csvs);
+		  tmparray.push(route_csvs);
+		  //tmparray.push(seapts);
+		  tmparray.push(logmsg);
+		  let json_out = JSON.stringify(tmparray);
+		  msg.innerText = json_out + "\n" + logmsg + "\n";
+		  
+		  let xhr_json = new XMLHttpRequest();
+		  xhr_json.open("POST", "add_multicsv.cgi");
+		  xhr_json.setRequestHeader("Content-Type", "text/plain:charset=UTF-8");
+		  xhr_json.send(json_out);
+		  xhr_json.onreadystatechange = function(){
+		      if(this.readyState === 4 && this.status === 200){ // cgi completed properly.
+			  //console.log(this.responseText);
+			  
+			  // Clear the cache for the new point and lines
+			  for (let i=0; i<new_csv_mappts.length; i++){
+			      if (new_csv_mappts[i] != undefined){
+				  new_csv_mappts[i].setMap(null);
+				  new_csv_mappts[i] = null;
+			      }
+			  }
+			  new_csv_mappts.length = 0;
+			  
+			  // forward to next page
+			  document.location.href = "add_seapt_success.html?newpt="+tmplog;
+			  new_csvpts.length = 0;
+			  msg.innerText = "";
+		      }
+		  }
+	      } else {
+		  msg.innerText = "CHECK before save!!!";
+	      }
+	  });
+      }
+
+      google.maps.event.addDomListener(window, 'load', initMap);
+    </script>
+  </head>
+  <body>
+    <b>MERMAID configuation setup -- New SEAPTs -- </b><br/>
+    <br>
+    <input id="draw_seapts" type="button" value="SEAPTs">
+    <input id="clear_seapts" type="button" value="CLEAR"><br>
+    <input id="draw_links" type="button" value="LINKs">
+    <input id="clear_links" type="button" value="CLEAR"><br><br>
+    <!-- form name='fm1' method='POST' action='' id='draw_spf'>
+      ------------------------------------------------------------------------------------------------------------------------------- <br>
+      ADD PORT/SEAPT: <br>
+      <label> ID<input type="text" name="id" size="10" id="id"></label>
+      <label> lname<input type="text" name="lname" size="15" id="lname"></label>
+      <label> ename<input type="text" name="ename" size="15" id="ename"></label>
+      <label> pref<input type="text" name="pref" size="10" id="pref"></label><br><br>
+      <label> lat<input type="text" name="add_lat" size="8" id="add_lat"></label>
+      <label> lng<input type="text" name="add_lng" size="8" id="add_lng"></label><br>
+      <label> connect1: <input type="text" name="con1" size="10" id="con1"></label>
+      <label> connect2: <input type="text" name="con2" size="10" id="con2"></label>
+      <label> connect3: <input type="text" name="con3" size="10" id="con3"></label>
+      <label> connect4: <input type="text" name="con4" size="10" id="con4"></label>
+      <label> connect5: <input type="text" name="con5" size="10" id="con5"></label><br><br>
+      
+      <label> Wx cond<input type="text" name="wxcond" size="10" value="-" id="wxcond"></label><br>
+      <label> Wave (SG or WV)
+	<select name="sgorwv" id="sgorwv">
+	  <option value="-">-</option>	  
+	  <option value="SGFHGT">SGFHGT</option>
+	  <option value="WVHGT">WVHGT</option>
+	</select>
+      </label>
+      <label> wave2<input type="text" name="wave2" size="10" value="-" id="wave2"></label>
+      <label> wave3<input type="text" name="wave3" size="10" value="-" id="wave3"></label><br>
+      
+      <label> Wind (spd or gust)
+	<select name="spdorgust" id="spdorgust">
+	  <option value="-">-</option>	  	  
+	  <option value="WNDSPD">WNDSPD</option>
+	  <option value="GUSTS">GUSTS</option>
+	</select>
+      </label>
+      <label> wind2<input type="text" name="wind2" size="10" value="-" id="wind2"></label>
+      <label> wind3<input type="text" name="wind3" size="10" value="-" id="wind3"></label>
+      <label> hvis2<input type="text" name="hvis2" size="10" value="-" id="hvis2"></label>
+      <label> hvis3<input type="text" name="hvis3" size="10" value="-" id="hvis3"></label><br><br>
+      
+      <input id="chk" type="button" value="CHECK">
+      <input id="clear_chk" type="button" value="CLEAR"><br><br>
+      <input id="save_chk" type="button" value="SAVE">
+    </form -->
+
+    <form name='csv' method='POST' action='' id='csv'>
+      ------------------------------------------------------------------------------------------------------------------------------- <br>
+      ADD PORTs/SEAPTs by CSV: <br><br>
+      <label> SEAPT-CSV1<input type="text" name="seapt_csv1" size="100" id="seapt_csv1"></label><br>
+      <label> SEAPT-CSV2<input type="text" name="seapt_csv2" size="100" id="seapt_csv2"></label><br>
+      <label> SEAPT-CSV3<input type="text" name="seapt_csv3" size="100" id="seapt_csv3"></label><br>
+      <label> SEAPT-CSV4<input type="text" name="seapt_csv4" size="100" id="seapt_csv4"></label><br>
+      <label> SEAPT-CSV4<input type="text" name="seapt_csv5" size="100" id="seapt_csv5"></label><br><br>      
+
+      <label> ROUTE-CSV1<input type="text" name="route_csv1" size="100" id="route_csv1"></label><br>
+      <label> ROUTE-CSV2<input type="text" name="route_csv2" size="100" id="route_csv2"></label><br>
+      <label> ROUTE-CSV3<input type="text" name="route_csv3" size="100" id="route_csv3"></label><br>
+      <label> ROUTE-CSV4<input type="text" name="route_csv4" size="100" id="route_csv4"></label><br>      
+      <label> ROUTE-CSV5<input type="text" name="route_csv5" size="100" id="route_csv5"></label><br><br>      
+      
+      <input id="chk_csv" type="button" value="CHECK">
+      <input id="clear_csv" type="button" value="CLEAR"><br><br>
+      <input id="save_csv" type="button" value="SAVE">
+    </form>
+    <p id="msg"></p>
+    <a href="index.html">Return to menu</a>
+    <div id="mapDiv"></div>
+  </body>
+</html>
