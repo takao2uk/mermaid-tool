@@ -13,7 +13,7 @@ my $q = new CGI;
 my $json_in = uri_unescape($q->param('POSTDATA'));
 my $data = decode_json($json_in);
 
-# back up file
+# back up files
 my $today = strftime "%Y%m%d_%H%M%S", localtime;
 my $file0 = "./master_file/changelog.log";
 my $file1 = "./master_file/seapt_master.csv";
